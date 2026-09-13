@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "525353162988",
+    "project_id": "student-result-analyzer-48a6b",
+    "storage_bucket": "student-result-analyzer-48a6b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:525353162988:android:81abc7ffac62b402e6edc9",
+        "android_client_info": {
+          "package_name": "com.example.student_result_analyzer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC98dyxrEA56h23rRrbG8xVFbN_pDtnH4k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
