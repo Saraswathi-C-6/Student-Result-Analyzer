@@ -1,16 +1,63 @@
-# student_result_analyzer
+Student Result Analyzer
 
-A new Flutter project.
+A Flutter-based application designed to simplify student academic result management using Firebase.
 
-## Getting Started
+Project Status
 
-This project is a starting point for a Flutter application.
+In Progress 
 
-A few resources to get you started if this is your first Flutter project:
+Overview
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Student Result Analyzer provides separate dashboards for teachers and students to manage and view academic results. The application uses PDF files as input for student result processing.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Teacher Dashboard
+
+- Student registration and management.
+- Semester-wise subject management.
+- Importing student results from PDF files.
+- Academic performance charts and statistics.
+
+Student Dashboard
+
+- View semester-wise academic results.
+- View academic performance charts.
+- Access student result details.
+
+Technologies Used
+
+- Flutter and Dart
+- Firebase Authentication
+- Cloud Firestore
+- Provider
+- fl_chart
+- Syncfusion Flutter PDF
+- file_picker
+
+Future Enhancements
+
+- Automatic GPA and CGPA calculation.
+- Arrear history and academic performance summaries.
+- Downloadable and printable PDF report cards.
+
+Getting Started
+
+Prerequisites
+
+- Flutter SDK
+- Dart SDK
+- Android Studio or Visual Studio Code
+
+Installation
+
+1. Clone the repository:
+   git clone https://github.com/Saraswathi-C-6/Student-Result-Analyzer.git
+2. Open the project directory:
+   cd Student-Result-Analyzer
+3. Install dependencies:
+   flutter pub get
+4. Run the application:
+   flutter run
+
+Note
+
+This project is under development. Some features are planned for future implementation.
