@@ -178,7 +178,7 @@ class _EditSubjectPageState extends State<EditSubjectPage> {
               dropdownColor: cardBg,
               style: TextStyle(color: textColor),
               decoration: _dec('Credits', Icons.stars_rounded, cardBg, sub),
-              items: [1, 2, 3, 4, 5, 6]
+              items: [0, 1, 2, 3, 4, 5, 6]
                   .map((c) => DropdownMenuItem(
                       value: c.toDouble(), child: Text('$c Credits')))
                   .toList(),
@@ -214,3 +214,4 @@ class _EditSubjectPageState extends State<EditSubjectPage> {
     );
   }
 }
+

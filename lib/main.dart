@@ -344,11 +344,15 @@ import 'package:flutter/foundation.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
   } catch (e) {
-    debugPrint('Firebase already initialized: $e');
+    debugPrint('Firebase initialization failed: $e');
+    runApp(FirebaseStartupFailure(error: e.toString()));
+    return;
   }
   try {
     if (!kIsWeb) {
@@ -437,14 +441,27 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      if (!mounted) return;
-      final role = doc.data()?['role'] ?? 'student';
-      Navigator.pushReplacementNamed(context,
-          role == 'teacher' ? '/teacher-dashboard' : '/student-dashboard');
+      try {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        if (!mounted) return;
+        if (!doc.exists) {
+          await FirebaseAuth.instance.signOut();
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(context, '/login');
+          return;
+        }
+        final role = doc.data()?['role'] ?? 'student';
+        Navigator.pushReplacementNamed(context,
+            role == 'teacher' ? '/teacher-dashboard' : '/student-dashboard');
+      } catch (e) {
+        debugPrint('Could not load the signed-in user profile: $e');
+        await FirebaseAuth.instance.signOut();
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/login');
+      }
     } else {
       Navigator.pushReplacementNamed(context, '/login');
     }
@@ -501,6 +518,30 @@ class _SplashScreenState extends State<SplashScreen>
                       color: Color(0xFF6C63FF), strokeWidth: 2.5),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class FirebaseStartupFailure extends StatelessWidget {
+  const FirebaseStartupFailure({super.key, required this.error});
+
+  final String error;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SelectableText(
+              'Firebase could not start. Check the Firebase app configuration and try again.\n\n$error',
+              textAlign: TextAlign.center,
             ),
           ),
         ),

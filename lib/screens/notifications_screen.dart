@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/gpa_calculator.dart';
 import '../utils/notification_service.dart';
+import '../services/teacher_results_loader.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -36,25 +37,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         studentName: '',
       ));
 
+      final all = await TeacherResultsLoader.loadAll(force: true);
+
       for (final doc in snapshot.docs) {
         final data = doc.data();
         final name = data['name'] ?? 'Unknown';
-        final results = data['results'] as Map<String, dynamic>? ?? {};
-        if (results.isEmpty) continue;
+        final rows = all[doc.id] ?? <Map<String, dynamic>>[];
+        if (rows.isEmpty) continue;
 
-        double total = 0;
-        int count = 0;
-        bool hasFail = false;
-
-        results.forEach((_, mark) {
-          final m = (mark as num).toDouble();
-          total += GpaCalculator.getGradePoint(m);
-          count++;
-          if (m < 40) hasFail = true;
-        });
-
-        if (count == 0) continue;
-        final avg = total / count;
+        final avg = GpaCalculator.calculateCGPA(rows);
+        final hasFail = rows.any(
+            (r) => !GpaCalculator.isPassed((r['grade'] ?? 'F').toString()));
 
         if (avg < 5.0) {
           items.add(_NotifItem(

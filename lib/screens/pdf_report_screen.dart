@@ -155,7 +155,11 @@ class _PDFReportScreenState extends State<PDFReportScreen> {
                     PdfColor.fromHex('#FFBE0B')),
                 _pdfSummaryBox(
                     'Semesters',
-                    widget.allResults.isEmpty ? '0' : '4',
+                    widget.allResults
+                        .map((r) => r['semester'])
+                        .toSet()
+                        .length
+                        .toString(),
                     PdfColor.fromHex('#FF6B6B')),
               ],
             ),
@@ -164,7 +168,7 @@ class _PDFReportScreenState extends State<PDFReportScreen> {
           pw.SizedBox(height: 16),
 
           // Semester results
-          ...[1, 2, 3, 4].map((sem) {
+          ...[1, 2, 3, 4, 5, 6, 7, 8].map((sem) {
             final results = _getSemResults(sem);
             if (results.isEmpty) return pw.SizedBox();
             final gpa = GpaCalculator.calculateGPA(results);
@@ -561,7 +565,7 @@ class _PDFReportScreenState extends State<PDFReportScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            ...[1, 2, 3, 4].map((sem) {
+            ...[1, 2, 3, 4, 5, 6, 7, 8].map((sem) {
               final results = _getSemResults(sem);
               if (results.isEmpty) return const SizedBox();
               final gpa = GpaCalculator.calculateGPA(results);

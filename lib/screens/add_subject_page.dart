@@ -245,10 +245,10 @@ class _AddSubjectPageState extends State<AddSubjectPage> {
 
     // FIX 3: credits parse + zero-check (validator already guards this,
     //         but double-check here before the Firestore call)
-    final credits = double.tryParse(_creditsCtrl.text.trim()) ?? 0;
-    if (credits <= 0) {
+    final credits = double.tryParse(_creditsCtrl.text.trim());
+    if (credits == null || credits < 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Credits must be greater than 0'),
+          content: Text('Enter valid credits (0 for non-credit papers)'),
           backgroundColor: Colors.red));
       return;
     }
@@ -414,7 +414,7 @@ class _AddSubjectPageState extends State<AddSubjectPage> {
                 if (v == null || v.trim().isEmpty) return 'Credits is required';
                 final parsed = double.tryParse(v.trim());
                 if (parsed == null) return 'Enter a valid number';
-                if (parsed < 0) return 'Credits must be negative';
+                if (parsed < 0) return 'Credits cannot be negative';
                 if (parsed > 6) return 'Credits cannot exceed 6';
                 return null;
               },

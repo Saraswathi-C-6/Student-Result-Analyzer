@@ -1621,7 +1621,6 @@ class _AuthScreenState extends State<AuthScreen>
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
 
-  String selectedRole = 'student';
   String _department = 'CSE';
   String _batch = '2023-2027';
   final _registerController = TextEditingController();
@@ -1693,9 +1692,8 @@ class _AuthScreenState extends State<AuthScreen>
         final credential =
             await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
+          password: _passwordController.text,
         );
-
         final doc = await FirebaseFirestore.instance
             .collection('users')
             .doc(credential.user!.uid)
@@ -1703,12 +1701,15 @@ class _AuthScreenState extends State<AuthScreen>
 
         if (!mounted) return;
 
-        if (doc.exists) {
-          final role = doc.data()?['role'] ?? 'student';
-          _navigateByRole(role);
-        } else {
-          _showError('User data not found. Please contact admin.');
+        if (!doc.exists) {
+          await FirebaseAuth.instance.signOut();
+          _showError(
+              'Your profile is missing. Please complete sign-up or contact an administrator.');
+          return;
         }
+
+        final role = doc.data()?['role'] ?? 'student';
+        _navigateByRole(role);
       } else {
         // SIGNUP
         if (_passwordController.text != _confirmController.text) {
@@ -1717,40 +1718,66 @@ class _AuthScreenState extends State<AuthScreen>
           return;
         }
 
-        final credential =
-            await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-        );
+        final email = _emailController.text.trim();
+        final password = _passwordController.text;
+        UserCredential credential;
+        var isRecoveringIncompleteSignup = false;
 
-        // Build Firestore user data
+        try {
+          credential = await FirebaseAuth.instance
+              .createUserWithEmailAndPassword(email: email, password: password);
+        } on FirebaseAuthException catch (e) {
+          if (e.code != 'email-already-in-use') rethrow;
+
+          // Auth can succeed while the following Firestore write fails. Let
+          // that same user finish their profile on a retry.
+          credential = await FirebaseAuth.instance
+              .signInWithEmailAndPassword(email: email, password: password);
+          final existingProfile = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(credential.user!.uid)
+              .get();
+          if (existingProfile.exists) {
+            await FirebaseAuth.instance.signOut();
+            _showError('This email is already registered. Please log in.');
+            return;
+          }
+          isRecoveringIncompleteSignup = true;
+        }
+
         final userData = <String, dynamic>{
           'uid': credential.user!.uid,
           'name': _nameController.text.trim(),
-          'email': _emailController.text.trim(),
-          'role': selectedRole,
-          'createdAt': FieldValue.serverTimestamp(),
+          'email': email,
+          'role': 'student',
+          if (!isRecoveringIncompleteSignup)
+            'createdAt': FieldValue.serverTimestamp(),
         };
 
-        // Add student-specific fields only for student role
-        if (selectedRole == 'student') {
-          userData['registerNumber'] = _registerController.text.trim();
-          userData['department'] = _department;
-          userData['batch'] = _batch;
-        }
+        userData['registerNumber'] = _registerController.text.trim();
+        userData['department'] = _department;
+        userData['batch'] = _batch;
 
         await FirebaseFirestore.instance
             .collection('users')
             .doc(credential.user!.uid)
-            .set(userData);
+            .set(userData, SetOptions(merge: isRecoveringIncompleteSignup));
 
         if (!mounted) return;
-        _navigateByRole(selectedRole);
+        _navigateByRole('student');
       }
     } on FirebaseAuthException catch (e) {
       _showError(_getErrorMessage(e.code));
+    } on FirebaseException catch (e) {
+      debugPrint('Firebase operation failed (${e.code}): ${e.message}');
+      if (FirebaseAuth.instance.currentUser != null) {
+        await FirebaseAuth.instance.signOut();
+      }
+      _showError(_getFirebaseErrorMessage(e));
     } catch (e) {
-      _showError('Something went wrong. Please try again.');
+      debugPrint('Unexpected authentication flow error: $e');
+      _showError(
+          'Could not complete sign in. Check your connection and try again.');
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -1771,18 +1798,38 @@ class _AuthScreenState extends State<AuthScreen>
       case 'wrong-password':
         return 'Incorrect password. Please try again.';
       case 'email-already-in-use':
-        return 'This email is already registered.';
+        return 'This email already has an account. Please log in or reset your password.';
       case 'weak-password':
         return 'Password must be at least 6 characters.';
       case 'invalid-email':
         return 'Please enter a valid email address.';
       case 'too-many-requests':
         return 'Too many attempts. Please try again later.';
+      case 'operation-not-allowed':
+        return 'Email and password sign in is disabled for this Firebase project.';
+      case 'network-request-failed':
+        return 'Network error. Check your internet connection and try again.';
+      case 'user-disabled':
+        return 'This account has been disabled. Contact the administrator.';
+      case 'configuration-not-found':
+      case 'app-not-authorized':
+      case 'invalid-api-key':
+        return 'Firebase authentication is not configured for this app.';
       case 'invalid-credential':
         return 'Invalid email or password.';
       default:
         return 'An error occurred. Please try again.';
     }
+  }
+
+  String _getFirebaseErrorMessage(FirebaseException error) {
+    if (error.code == 'permission-denied') {
+      return 'Your account was accepted, but Firestore blocked profile access. Check the Firebase Firestore security rules.';
+    }
+    if (error.code == 'unavailable' || error.code == 'deadline-exceeded') {
+      return 'Firebase is temporarily unreachable. Check your connection and try again.';
+    }
+    return 'Firebase could not finish account setup (${error.code}). Please try again.';
   }
 
   void _showError(String message) {
@@ -2027,62 +2074,50 @@ class _AuthScreenState extends State<AuthScreen>
                               ),
                               const SizedBox(height: 20),
 
-                              // ROLE SELECTOR
-                              _buildLabel('Register as'),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  _buildRoleCard(
-                                      'teacher',
-                                      'Teacher',
-                                      Icons.person_pin_rounded,
-                                      'Add & manage results'),
-                                  const SizedBox(width: 12),
-                                  _buildRoleCard(
-                                      'student',
-                                      'Student',
-                                      Icons.school_rounded,
-                                      'View your results'),
-                                ],
+                              _buildLabel('Student account'),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Teacher accounts are created by an administrator.',
+                                style: TextStyle(
+                                    color: Color(0xFF8B92B8), fontSize: 12),
                               ),
-
-                              // STUDENT EXTRA FIELDS
-                              if (selectedRole == 'student') ...[
-                                const SizedBox(height: 20),
-                                _buildLabel('Register Number'),
-                                const SizedBox(height: 8),
-                                _buildTextField(
-                                  controller: _registerController,
-                                  hint: 'e.g. 22CS001',
-                                  icon: Icons.badge_outlined,
-                                  validator: (v) {
-                                    if (selectedRole != 'student') return null;
-                                    if (v == null || v.trim().isEmpty) {
-                                      return 'Register number is required';
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 20),
-                                _buildLabel('Department'),
-                                const SizedBox(height: 8),
-                                _buildDropdown(
-                                  value: _department,
-                                  items: _departments,
-                                  icon: Icons.account_balance_outlined,
-                                  onChanged: (v) =>
-                                      setState(() => _department = v!),
-                                ),
-                                const SizedBox(height: 20),
-                                _buildLabel('Batch'),
-                                const SizedBox(height: 8),
-                                _buildDropdown(
-                                  value: _batch,
-                                  items: _batches,
-                                  icon: Icons.calendar_today_outlined,
-                                  onChanged: (v) => setState(() => _batch = v!),
-                                ),
-                              ],
+                              const SizedBox(height: 20),
+                              _buildLabel('Register Number'),
+                              const SizedBox(height: 8),
+                              _buildTextField(
+                                controller: _registerController,
+                                hint: 'Enter your 10-digit register number',
+                                icon: Icons.badge_outlined,
+                                keyboardType: TextInputType.number,
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Register number is required';
+                                  }
+                                  if (!RegExp(r'^\d{10}$').hasMatch(v.trim())) {
+                                    return 'Enter the same 10-digit number shown in your results';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 20),
+                              _buildLabel('Department'),
+                              const SizedBox(height: 8),
+                              _buildDropdown(
+                                value: _department,
+                                items: _departments,
+                                icon: Icons.account_balance_outlined,
+                                onChanged: (v) =>
+                                    setState(() => _department = v!),
+                              ),
+                              const SizedBox(height: 20),
+                              _buildLabel('Batch'),
+                              const SizedBox(height: 8),
+                              _buildDropdown(
+                                value: _batch,
+                                items: _batches,
+                                icon: Icons.calendar_today_outlined,
+                                onChanged: (v) => setState(() => _batch = v!),
+                              ),
                             ],
 
                             // FORGOT PASSWORD (login only)
@@ -2119,7 +2154,8 @@ class _AuthScreenState extends State<AuthScreen>
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16)),
                                   disabledBackgroundColor:
-                                      const Color(0xFF6C63FF).withOpacity(0.6),
+                                      const Color(0xFF6C63FF)
+                                          .withValues(alpha: 0.6),
                                 ),
                                 child: isLoading
                                     ? const SizedBox(
@@ -2196,7 +2232,7 @@ class _AuthScreenState extends State<AuthScreen>
             boxShadow: active
                 ? [
                     BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
+                        color: Colors.black.withValues(alpha: 0.08),
                         blurRadius: 8,
                         offset: const Offset(0, 2))
                   ]
@@ -2273,7 +2309,7 @@ class _AuthScreenState extends State<AuthScreen>
     required void Function(String?) onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       decoration: InputDecoration(
         prefixIcon: Icon(icon, color: const Color(0xFF8B92B8), size: 20),
         filled: true,
@@ -2297,62 +2333,6 @@ class _AuthScreenState extends State<AuthScreen>
       items:
           items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
       onChanged: onChanged,
-    );
-  }
-
-  Widget _buildRoleCard(
-      String role, String label, IconData icon, String subtitle) {
-    final isSelected = selectedRole == role;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => selectedRole = role),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? const Color(0xFF6C63FF).withOpacity(0.08)
-                : Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isSelected
-                  ? const Color(0xFF6C63FF)
-                  : const Color(0xFFE8EAF6),
-              width: isSelected ? 2 : 1.5,
-            ),
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? const Color(0xFF6C63FF)
-                      : const Color(0xFFEEF0F8),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon,
-                    color: isSelected ? Colors.white : const Color(0xFF8B92B8),
-                    size: 22),
-              ),
-              const SizedBox(height: 8),
-              Text(label,
-                  style: TextStyle(
-                      color: isSelected
-                          ? const Color(0xFF6C63FF)
-                          : const Color(0xFF2D3142),
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14)),
-              const SizedBox(height: 2),
-              Text(subtitle,
-                  style:
-                      const TextStyle(color: Color(0xFF8B92B8), fontSize: 11),
-                  textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-      ),
     );
   }
 

@@ -1309,7 +1309,7 @@
 // Uses ResultStorageService.importResultsFromPdf() directly.
 // DO NOT modify navigation or auth logic.
 
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
@@ -1326,7 +1326,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   final ResultStorageService _service = ResultStorageService();
 
   int? _selectedSemester;
-  File? _selectedFile;
+  Uint8List? _selectedFileBytes;
   String? _selectedFileName;
 
   bool _isImporting = false;
@@ -1424,40 +1424,43 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           border: Border.all(
-            color: _selectedFile != null
+            color: _selectedFileBytes != null
                 ? theme.colorScheme.primary
                 : theme.colorScheme.outline,
-            width: _selectedFile != null ? 2 : 1,
+            width: _selectedFileBytes != null ? 2 : 1,
           ),
           borderRadius: BorderRadius.circular(12),
-          color: _selectedFile != null
+          color: _selectedFileBytes != null
               ? theme.colorScheme.primaryContainer.withOpacity(0.3)
               : theme.colorScheme.surface,
         ),
         child: Column(
           children: [
             Icon(
-              _selectedFile != null ? Icons.picture_as_pdf : Icons.upload_file,
+              _selectedFileBytes != null
+                  ? Icons.picture_as_pdf
+                  : Icons.upload_file,
               size: 40,
-              color: _selectedFile != null
+              color: _selectedFileBytes != null
                   ? theme.colorScheme.primary
                   : theme.colorScheme.outline,
             ),
             const SizedBox(height: 8),
             Text(
-              _selectedFile != null
+              _selectedFileBytes != null
                   ? (_selectedFileName ?? 'PDF Selected')
                   : 'Tap to select Result PDF',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: _selectedFile != null
+                    color: _selectedFileBytes != null
                     ? theme.colorScheme.primary
                     : theme.colorScheme.onSurfaceVariant,
-                fontWeight:
-                    _selectedFile != null ? FontWeight.bold : FontWeight.normal,
+                fontWeight: _selectedFileBytes != null
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
               textAlign: TextAlign.center,
             ),
-            if (_selectedFile != null) ...[
+            if (_selectedFileBytes != null) ...[
               const SizedBox(height: 4),
               Text('Tap to change file',
                   style: theme.textTheme.bodySmall
@@ -1555,7 +1558,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   }
 
   Widget _buildImportButton(ThemeData theme) {
-    final isReady = _selectedSemester != null && _selectedFile != null;
+    final isReady = _selectedSemester != null && _selectedFileBytes != null;
     return ElevatedButton.icon(
       onPressed: isReady ? _startImport : null,
       icon: const Icon(Icons.cloud_upload),
@@ -1573,11 +1576,18 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf'],
+      withData: true,
     );
-    if (result != null && result.files.single.path != null) {
+    final file = result?.files.single;
+    if (file != null) {
+      final bytes = file.bytes;
+      if (bytes == null) {
+        setState(() => _errorMessage = 'Could not read the selected PDF.');
+        return;
+      }
       setState(() {
-        _selectedFile = File(result.files.single.path!);
-        _selectedFileName = result.files.single.name;
+        _selectedFileBytes = bytes;
+        _selectedFileName = file.name;
         _lastResult = null;
         _errorMessage = null;
       });
@@ -1585,7 +1595,7 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
   }
 
   Future<void> _startImport() async {
-    if (_selectedSemester == null || _selectedFile == null) return;
+    if (_selectedSemester == null || _selectedFileBytes == null) return;
 
     setState(() {
       _isImporting = true;
@@ -1597,16 +1607,20 @@ class _PdfImportScreenState extends State<PdfImportScreen> {
     try {
       // Extract text from PDF using Syncfusion
       setState(() => _statusMessage = 'Extracting text from PDF...');
-      final bytes = await _selectedFile!.readAsBytes();
+      final bytes = _selectedFileBytes!;
       final document = PdfDocument(inputBytes: bytes);
-      final rawText = PdfTextExtractor(document).extractText();
-      document.dispose();
+      late final String rawText;
+      try {
+        rawText = PdfTextExtractor(document).extractText();
+      } finally {
+        document.dispose();
+      }
 
       setState(() => _statusMessage = 'Importing results to Firestore...');
 
       final result = await _service.importResultsFromPdf(
         rawText: rawText,
-        localPdfPath: _selectedFile!.path,
+        pdfBytes: bytes,
         semester: _selectedSemester!,
       );
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/gpa_calculator.dart';
+import '../services/teacher_results_loader.dart';
 
 /// Shows per-semester GPA ranking and overall CGPA ranking for all students.
 class SemesterRankingScreen extends StatefulWidget {
@@ -38,8 +39,7 @@ class _SemesterRankingScreenState extends State<SemesterRankingScreen>
     setState(() => _isLoading = true);
     try {
       // Fetch all results
-      final resultsSnap =
-          await FirebaseFirestore.instance.collection('results').get();
+      final allByStudent = await TeacherResultsLoader.loadAll(force: true);
 
       // Fetch all students for name lookup
       final studentsSnap =
@@ -54,16 +54,16 @@ class _SemesterRankingScreenState extends State<SemesterRankingScreen>
           {};
       final Set<int> semesters = {};
 
-      for (final doc in resultsSnap.docs) {
-        final data = doc.data();
-        final sid = data['studentId'] as String? ?? '';
-        final sem = (data['semester'] as num?)?.toInt() ?? 1;
-        if (sid.isEmpty) continue;
-        semesters.add(sem);
-        byStudentBySem.putIfAbsent(sid, () => {});
-        byStudentBySem[sid]!.putIfAbsent(sem, () => []);
-        byStudentBySem[sid]![sem]!.add(data);
-      }
+      allByStudent.forEach((sid, rows) {
+        for (final data in rows) {
+          final sem = (data['semester'] as num?)?.toInt() ?? 1;
+          if (sid.isEmpty) continue;
+          semesters.add(sem);
+          byStudentBySem.putIfAbsent(sid, () => {});
+          byStudentBySem[sid]!.putIfAbsent(sem, () => []);
+          byStudentBySem[sid]![sem]!.add(data);
+        }
+      });
 
       final sortedSems = semesters.toList()..sort();
 

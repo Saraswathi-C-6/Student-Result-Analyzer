@@ -1307,6 +1307,7 @@ class _StudentDashboardState extends State<StudentDashboard>
   List<Map<String, dynamic>> allResults = [];
   Set<int> availableSemesters = {};
   bool isLoading = true;
+  String? _loadError;
 
   // Sem 1–8
   static const int _totalSemesters = 8;
@@ -1341,6 +1342,9 @@ class _StudentDashboardState extends State<StudentDashboard>
       registerNumber =
           (userDoc.data()?['registerNumber'] ?? userDoc.data()?['regNo'] ?? '')
               .toString();
+      if (registerNumber.isEmpty) {
+        throw StateError('Your profile does not contain a register number.');
+      }
 
       // Also read department/batch from users doc first
       department = (userDoc.data()?['department'] ?? '').toString();
@@ -1366,6 +1370,8 @@ class _StudentDashboardState extends State<StudentDashboard>
 
       if (mounted) setState(() => isLoading = false);
     } catch (e) {
+      _loadError = e.toString();
+      debugPrint('Could not load student results: $e');
       if (mounted) setState(() => isLoading = false);
     }
   }
@@ -1385,151 +1391,168 @@ class _StudentDashboardState extends State<StudentDashboard>
       body: isLoading
           ? const Center(
               child: CircularProgressIndicator(color: Color(0xFF6C63FF)))
-          : NestedScrollView(
-              headerSliverBuilder: (context, _) => [
-                SliverAppBar(
-                  expandedHeight: 280,
-                  pinned: true,
-                  backgroundColor: const Color(0xFF1A1F4E),
-                  automaticallyImplyLeading: false,
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.settings_outlined,
-                          color: Color(0xFF8B92B8)),
-                      onPressed: () =>
-                          Navigator.pushNamed(context, '/settings'),
+          : _loadError != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Could not load your results. Check your register number and Firestore rules.\n\n$_loadError',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.logout_rounded,
-                          color: Color(0xFFE53935)),
-                      onPressed: () async {
-                        await FirebaseAuth.instance.signOut();
-                        if (mounted) {
-                          Navigator.pushReplacementNamed(context, '/login');
-                        }
-                      },
-                    ),
-                  ],
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF1A1F4E), Color(0xFF0A0E27)],
+                  ),
+                )
+              : NestedScrollView(
+                  headerSliverBuilder: (context, _) => [
+                    SliverAppBar(
+                      expandedHeight: 280,
+                      pinned: true,
+                      backgroundColor: const Color(0xFF1A1F4E),
+                      automaticallyImplyLeading: false,
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.settings_outlined,
+                              color: Color(0xFF8B92B8)),
+                          onPressed: () =>
+                              Navigator.pushNamed(context, '/settings'),
                         ),
-                      ),
-                      child: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 44),
-                              Row(
+                        IconButton(
+                          icon: const Icon(Icons.logout_rounded,
+                              color: Color(0xFFE53935)),
+                          onPressed: () async {
+                            await FirebaseAuth.instance.signOut();
+                            if (mounted) {
+                              Navigator.pushReplacementNamed(context, '/login');
+                            }
+                          },
+                        ),
+                      ],
+                      flexibleSpace: FlexibleSpaceBar(
+                        background: Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF1A1F4E), Color(0xFF0A0E27)],
+                            ),
+                          ),
+                          child: SafeArea(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    width: 60,
-                                    height: 60,
-                                    decoration: BoxDecoration(
-                                      gradient: const LinearGradient(colors: [
-                                        Color(0xFF6C63FF),
-                                        Color(0xFF4ECDC4)
-                                      ]),
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        studentName.isNotEmpty
-                                            ? studentName[0].toUpperCase()
-                                            : '?',
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 26,
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('Welcome back,',
-                                            style: TextStyle(
-                                                color: Color(0xFF8B92B8),
-                                                fontSize: 13)),
-                                        Text(studentName,
+                                  const SizedBox(height: 44),
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 60,
+                                        height: 60,
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                              colors: [
+                                                Color(0xFF6C63FF),
+                                                Color(0xFF4ECDC4)
+                                              ]),
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            studentName.isNotEmpty
+                                                ? studentName[0].toUpperCase()
+                                                : '?',
                                             style: const TextStyle(
                                                 color: Colors.white,
-                                                fontSize: 20,
-                                                fontWeight: FontWeight.bold)),
-                                        if (registerNumber.isNotEmpty)
-                                          Text(registerNumber,
-                                              style: const TextStyle(
-                                                  color: Color(0xFF6C63FF),
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w500)),
-                                      ],
-                                    ),
+                                                fontSize: 26,
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 14),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            const Text('Welcome back,',
+                                                style: TextStyle(
+                                                    color: Color(0xFF8B92B8),
+                                                    fontSize: 13)),
+                                            Text(studentName,
+                                                style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 20,
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            if (registerNumber.isNotEmpty)
+                                              Text(registerNumber,
+                                                  style: const TextStyle(
+                                                      color: Color(0xFF6C63FF),
+                                                      fontSize: 13,
+                                                      fontWeight:
+                                                          FontWeight.w500)),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
+                                  const SizedBox(height: 20),
+                                  Row(
+                                    children: [
+                                      _buildStat(
+                                          'CGPA',
+                                          cgpa.toStringAsFixed(2),
+                                          const Color(0xFF6C63FF)),
+                                      const SizedBox(width: 10),
+                                      _buildStat(
+                                          'Credits',
+                                          totalCredits.toStringAsFixed(0),
+                                          const Color(0xFF4ECDC4)),
+                                      const SizedBox(width: 10),
+                                      _buildStat('Class', classification,
+                                          const Color(0xFFFFBE0B)),
+                                    ],
+                                  ),
+                                  if (department.isNotEmpty) ...[
+                                    const SizedBox(height: 10),
+                                    Text('$department • $batch',
+                                        style: const TextStyle(
+                                            color: Color(0xFF8B92B8),
+                                            fontSize: 12)),
+                                  ],
                                 ],
                               ),
-                              const SizedBox(height: 20),
-                              Row(
-                                children: [
-                                  _buildStat('CGPA', cgpa.toStringAsFixed(2),
-                                      const Color(0xFF6C63FF)),
-                                  const SizedBox(width: 10),
-                                  _buildStat(
-                                      'Credits',
-                                      totalCredits.toStringAsFixed(0),
-                                      const Color(0xFF4ECDC4)),
-                                  const SizedBox(width: 10),
-                                  _buildStat('Class', classification,
-                                      const Color(0xFFFFBE0B)),
-                                ],
-                              ),
-                              if (department.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                Text('$department • $batch',
-                                    style: const TextStyle(
-                                        color: Color(0xFF8B92B8),
-                                        fontSize: 12)),
-                              ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
+                      bottom: TabBar(
+                        controller: _tabController,
+                        indicatorColor: const Color(0xFF6C63FF),
+                        labelColor: const Color(0xFF6C63FF),
+                        unselectedLabelColor: const Color(0xFF8B92B8),
+                        isScrollable: true,
+                        tabs: const [
+                          Tab(text: 'Overview'),
+                          Tab(text: 'Performance'),
+                        ],
+                      ),
                     ),
-                  ),
-                  bottom: TabBar(
+                  ],
+                  body: TabBarView(
                     controller: _tabController,
-                    indicatorColor: const Color(0xFF6C63FF),
-                    labelColor: const Color(0xFF6C63FF),
-                    unselectedLabelColor: const Color(0xFF8B92B8),
-                    isScrollable: true,
-                    tabs: const [
-                      Tab(text: 'Overview'),
-                      Tab(text: 'Performance'),
+                    children: [
+                      _buildOverviewTab(cgpa, classification, totalCredits),
+                      // Pass data directly to existing performance screen
+                      StudentPerformanceScreen(
+                        studentId: registerNumber,
+                        studentName: studentName,
+                        allResults: allResults,
+                      ),
                     ],
                   ),
                 ),
-              ],
-              body: TabBarView(
-                controller: _tabController,
-                children: [
-                  _buildOverviewTab(cgpa, classification, totalCredits),
-                  // Pass data directly to existing performance screen
-                  StudentPerformanceScreen(
-                    studentId: registerNumber,
-                    studentName: studentName,
-                    allResults: allResults,
-                  ),
-                ],
-              ),
-            ),
     );
   }
 

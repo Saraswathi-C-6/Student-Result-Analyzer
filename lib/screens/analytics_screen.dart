@@ -24,7 +24,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   List<Map<String, dynamic>> _getSemResults(int sem) =>
       widget.allResults.where((r) => r['semester'] == sem).toList();
 
-  List<double> get _semGPAs => [1, 2, 3, 4]
+  // Semesters that actually have results (any number, 1..8)
+  List<int> get _sems {
+    final s = widget.allResults
+        .map((r) => (r['semester'] as num?)?.toInt() ?? 0)
+        .where((x) => x > 0)
+        .toSet()
+        .toList()
+      ..sort();
+    return s.isEmpty ? [1, 2, 3, 4] : s;
+  }
+
+  List<double> get _semGPAs => _sems
       .map((s) => GpaCalculator.calculateGPA(_getSemResults(s)))
       .toList();
 
@@ -146,7 +157,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                           touchTooltipData: BarTouchTooltipData(
                             getTooltipItem: (group, groupIndex, rod, rodIndex) {
                               return BarTooltipItem(
-                                'Sem ${group.x + 1}\n${rod.toY.toStringAsFixed(2)}',
+                                'Sem ${_sems[group.x.toInt()]}\n${rod.toY.toStringAsFixed(2)}',
                                 const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -171,7 +182,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               getTitlesWidget: (v, meta) => Text(
-                                'S${v.toInt() + 1}',
+                                (v.toInt() >= 0 && v.toInt() < _sems.length)
+                                    ? 'S${_sems[v.toInt()]}'
+                                    : '',
                                 style: TextStyle(
                                     color: subColor,
                                     fontSize: 12,
@@ -202,7 +215,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                             barRods: [
                               BarChartRodData(
                                 toY: gpa,
-                                width: 36,
+                                width: _sems.length > 4 ? 20 : 36,
                                 borderRadius: const BorderRadius.vertical(
                                     top: Radius.circular(8)),
                                 gradient: LinearGradient(
@@ -224,7 +237,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: _semGPAs.asMap().entries.map((e) {
-                      final hasData = _getSemResults(e.key + 1).isNotEmpty;
+                      final hasData = _getSemResults(_sems[e.key]).isNotEmpty;
                       return Column(
                         children: [
                           Text(
@@ -234,7 +247,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15),
                           ),
-                          Text('Sem ${e.key + 1}',
+                          Text('Sem ${_sems[e.key]}',
                               style: TextStyle(color: subColor, fontSize: 11)),
                         ],
                       );
@@ -403,7 +416,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                     lineBarsData: [
                       LineChartBarData(
                         spots: _semGPAs.asMap().entries.map((e) {
-                          return FlSpot((e.key + 1).toDouble(), e.value);
+                          return FlSpot(_sems[e.key].toDouble(), e.value);
                         }).toList(),
                         isCurved: true,
                         color: const Color(0xFF6C63FF),

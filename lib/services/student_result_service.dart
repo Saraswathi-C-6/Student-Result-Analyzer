@@ -551,36 +551,33 @@ class StudentResultService {
   // ── Fetch ALL results for a student (all semesters flattened) ────
   Future<List<Map<String, dynamic>>> fetchResults(String registerNumber) async {
     final results = <Map<String, dynamic>>[];
-    try {
-      final semsSnap = await _db
-          .collection('students')
-          .doc(registerNumber)
-          .collection('semesters')
-          .orderBy('semesterNumber')
-          .get();
+    final semsSnap = await _db
+        .collection('students')
+        .doc(registerNumber)
+        .collection('semesters')
+        .orderBy('semesterNumber')
+        .get();
 
-      for (final semDoc in semsSnap.docs) {
-        final semData = semDoc.data();
-        final semNum = (semData['semesterNumber'] as num?)?.toInt() ?? 0;
-        final resultStatus =
-            (semData['resultStatus'] as String?) ?? 'Available';
+    for (final semDoc in semsSnap.docs) {
+      final semData = semDoc.data();
+      final semNum = (semData['semesterNumber'] as num?)?.toInt() ?? 0;
+      final resultStatus = (semData['resultStatus'] as String?) ?? 'Available';
 
-        // Skip semesters with no result
-        if (resultStatus == 'No Result') continue;
+      // Skip semesters with no result
+      if (resultStatus == 'No Result') continue;
 
-        final subSnap = await semDoc.reference.collection('subjects').get();
-        for (final sub in subSnap.docs) {
-          final data = sub.data();
-          results.add({
-            ...data,
-            'credits': data['credit'] ?? data['credits'] ?? 0,
-            'semester': semNum,
-            'semesterGPA': semData['semesterGPA'] ?? 0.0,
-            'cumulativeCGPA': semData['cumulativeCGPA'] ?? 0.0,
-          });
-        }
+      final subSnap = await semDoc.reference.collection('subjects').get();
+      for (final sub in subSnap.docs) {
+        final data = sub.data();
+        results.add({
+          ...data,
+          'credits': data['credit'] ?? data['credits'] ?? 0,
+          'semester': semNum,
+          'semesterGPA': semData['semesterGPA'] ?? 0.0,
+          'cumulativeCGPA': semData['cumulativeCGPA'] ?? 0.0,
+        });
       }
-    } catch (_) {}
+    }
     return results;
   }
 
@@ -638,17 +635,15 @@ class StudentResultService {
   // ── Which semesters have data? ───────────────────────────────────
   Future<Set<int>> fetchAvailableSemesters(String registerNumber) async {
     final available = <int>{};
-    try {
-      final semsSnap = await _db
-          .collection('students')
-          .doc(registerNumber)
-          .collection('semesters')
-          .get();
-      for (final doc in semsSnap.docs) {
-        final semNum = (doc.data()['semesterNumber'] as num?)?.toInt();
-        if (semNum != null) available.add(semNum);
-      }
-    } catch (_) {}
+    final semsSnap = await _db
+        .collection('students')
+        .doc(registerNumber)
+        .collection('semesters')
+        .get();
+    for (final doc in semsSnap.docs) {
+      final semNum = (doc.data()['semesterNumber'] as num?)?.toInt();
+      if (semNum != null) available.add(semNum);
+    }
     return available;
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../utils/gpa_calculator.dart';
+import '../services/teacher_results_loader.dart';
 
 class StudentDetailScreen extends StatefulWidget {
   final String studentId;
@@ -26,7 +27,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController =
+        TabController(length: TeacherResultsLoader.maxSemesters, vsync: this);
   }
 
   @override
@@ -45,12 +47,11 @@ class _StudentDetailScreenState extends State<StudentDetailScreen>
 
   Future<void> _loadResults() async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('results')
-          .where('studentId', isEqualTo: studentId)
-          .get();
+      final rows =
+          await TeacherResultsLoader.loadForStudent(studentId, force: true);
+      if (!mounted) return;
       setState(() {
-        allResults = snap.docs.map((d) => d.data()).toList();
+        allResults = rows;
         isLoading = false;
       });
     } catch (e) {
@@ -190,19 +191,16 @@ class _StudentDetailScreenState extends State<StudentDetailScreen>
                     indicatorColor: const Color(0xFF6C63FF),
                     labelColor: const Color(0xFF6C63FF),
                     unselectedLabelColor: const Color(0xFF8B92B8),
-                    tabs: const [
-                      Tab(text: 'Sem 1'),
-                      Tab(text: 'Sem 2'),
-                      Tab(text: 'Sem 3'),
-                      Tab(text: 'Sem 4'),
-                    ],
+                    isScrollable: true,
+                    tabs: List.generate(TeacherResultsLoader.maxSemesters,
+                        (i) => Tab(text: 'Sem ${i + 1}')),
                   ),
                 ),
               ],
               body: TabBarView(
                 controller: _tabController,
-                children:
-                    [1, 2, 3, 4].map((sem) => _buildSemesterTab(sem)).toList(),
+                children: List.generate(TeacherResultsLoader.maxSemesters,
+                    (i) => _buildSemesterTab(i + 1)),
               ),
             ),
     );
